@@ -265,6 +265,10 @@
       <button class="view-btn active" id="btn-view-week" onclick="setView('week')">📅 Semanal</button>
       <button class="view-btn" id="btn-view-list" onclick="setView('list')">☰ Lista</button>
     </div>
+    <div class="view-toggle" id="list-group-toggle" style="display:none">
+      <button class="view-btn active" id="btn-group-cat" onclick="setListGroup('categoria')">Por categoria</button>
+      <button class="view-btn" id="btn-group-day" onclick="setListGroup('dia')">Por dia</button>
+    </div>
     <button class="btn btn-primary btn-sm" onclick="openAddTask()">+ Tarefa</button>
     <button class="btn btn-ghost btn-sm" onclick="sendEmail()" title="Enviar e-mail de resumo">📧</button>
   </div>
@@ -430,6 +434,8 @@ let state = {
   currentWeekIndex: 0,
   view: "week",
   editingTaskId: null,
+  listGroupBy: "categoria", // "categoria" | "dia"
+  collapsedCats: new Set(), // ids de categorias colapsadas na visão semanal
 };
 
 // ============================================================
@@ -573,6 +579,20 @@ function setView(v) {
   state.view = v;
   document.getElementById("btn-view-week").classList.toggle("active", v==="week");
   document.getElementById("btn-view-list").classList.toggle("active", v==="list");
+  document.getElementById("list-group-toggle").style.display = v==="list" ? "" : "none";
+  render();
+}
+
+function setListGroup(g) {
+  state.listGroupBy = g;
+  document.getElementById("btn-group-cat").classList.toggle("active", g==="categoria");
+  document.getElementById("btn-group-day").classList.toggle("active", g==="dia");
+  render();
+}
+
+function toggleCatCollapse(catId) {
+  if (state.collapsedCats.has(catId)) state.collapsedCats.delete(catId);
+  else state.collapsedCats.add(catId);
   render();
 }
 
@@ -591,8 +611,6 @@ function getDays() { return DAYS[getLang()] || DAYS["pt-BR"]; }
 
 function renderWeekView() {
   const days = getDays();
-  const now = new Date(); now.setHours(0,0,0,0);
-  const todayDay = DAY_KEYS[now.getDay() === 0 ? 8 : now.getDay()]; // simplificado
 
   let html = '<div class="week-grid">';
   // Header
@@ -605,13 +623,18 @@ function renderWeekView() {
   // Por categoria
   for (const cat of state.categories) {
     const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id && t.dia);
-    if (catTasks.length === 0 && unscheduled.filter(t=>t.categoria_id===cat.id).length === 0) continue;
-    const total = catTasks.length + unscheduled.filter(t=>t.categoria_id===cat.id).length;
-    const done  = catTasks.filter(t=>t.concluida).length;
+    const catUnscheduled = unscheduled.filter(t=>t.categoria_id===cat.id);
+    if (catTasks.length === 0 && catUnscheduled.length === 0) continue;
+    const total = catTasks.length + catUnscheduled.length;
+    const done  = catTasks.filter(t=>t.concluida).length + catUnscheduled.filter(t=>t.concluida).length;
+    const isCollapsed = state.collapsedCats.has(cat.id);
 
-    // Linha de cabeçalho da categoria
-    html += `<div class="cat-header-row" style="background:${cat.cor_escura};color:#fff;grid-column:1/-1;">`;
-    html += `▸ ${cat.nome} <span class="cat-count">${done}/${total}</span></div>`;
+    // Linha de cabeçalho da categoria — clicável para colapsar/expandir
+    html += `<div class="cat-header-row" style="background:${cat.cor_escura};color:#fff;grid-column:1/-1;cursor:pointer;" onclick="toggleCatCollapse('${cat.id}')">`;
+    html += `<span class="cat-collapse-arrow" style="display:inline-block;transition:transform .15s;${isCollapsed?'transform:rotate(-90deg);':''}">▾</span> `;
+    html += `${cat.nome} <span class="cat-count">${done}/${total}</span></div>`;
+
+    if (isCollapsed) continue; // pula a linha de dias desta categoria
 
     // Linha de células por dia
     html += `<div class="week-cell cat-label" style="background:${cat.cor_escura}22;color:${cat.cor_escura}">${cat.nome}</div>`;
@@ -651,9 +674,9 @@ function renderTaskChip(t, cat, unscheduled=false) {
     style="border-left-color:${cat.cor_escura}"
     ondragstart="dragTask(event,'${t.id}')"
     onclick="openEditTask('${t.id}')">
-    <div class="task-check" onclick="event.stopPropagation();toggleTask('${t.id}')">
-      <label class="check-wrap">
-        <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
+    <div class="task-check" onclick="event.stopPropagation()">
+      <label class="check-wrap" onclick="event.stopPropagation()">
+        <input type="checkbox" ${t.concluida?"checked":""} onclick="event.stopPropagation()" onchange="toggleTask('${t.id}')"/>
         <div class="check-box"></div>
       </label>
     </div>
@@ -669,6 +692,29 @@ function renderListView() {
     return html + '</div>';
   }
 
+  if (state.listGroupBy === "dia") {
+    // Agrupado por dia da semana (Segunda a Domingo, depois "Sem dia")
+    for (let d = 1; d <= 8; d++) {
+      const dayKey = d === 8 ? "" : DAY_KEYS[d];
+      const dayLabel = d === 8 ? days[0] : days[d];
+      const dayTasks = state.tasks.filter(t => (t.dia || "") === dayKey);
+      if (dayTasks.length === 0) continue;
+      const done = dayTasks.filter(t=>t.concluida).length;
+
+      html += `<div class="list-cat-block">`;
+      html += `<div class="list-cat-header" style="background:var(--text);color:var(--surface)">`;
+      html += `<div><div class="list-cat-name">${dayLabel}</div><div class="list-cat-sub">${done}/${dayTasks.length} concluídas</div></div>`;
+      html += `</div><div class="list-tasks">`;
+      for (const t of dayTasks) {
+        const cat = getCatById(t.categoria_id);
+        html += renderListTaskRow(t, cat, true); // mostra o nome da categoria em vez do dia
+      }
+      html += `</div></div>`;
+    }
+    return html + '</div>';
+  }
+
+  // Agrupado por categoria (padrão)
   for (const cat of state.categories) {
     const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id);
     if (catTasks.length === 0) continue;
@@ -679,24 +725,34 @@ function renderListView() {
     html += `</div>`;
     html += `<div class="list-tasks">`;
     for (const t of catTasks) {
-      const dayLabel = t.dia ? days[DAY_KEYS.indexOf(t.dia)] : days[0];
-      const dayClass = t.dia ? "" : "no-day";
-      html += `<div class="list-task-row ${t.concluida?"done":""}" onclick="openEditTask('${t.id}')">`;
-      html += `<label class="check-wrap" onclick="event.stopPropagation()">
-        <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
-        <div class="check-box" style="border-color:${cat.cor_escura}"></div>
-      </label>`;
-      html += `<span class="list-task-title">${escHtml(t.titulo)}</span>`;
-      html += `<span class="list-task-day ${dayClass}">${dayLabel}</span>`;
-      html += `<div class="list-task-actions">
-        <button onclick="event.stopPropagation();openEditTask('${t.id}')" title="Editar">✏️</button>
-        <button onclick="event.stopPropagation();deleteTask('${t.id}')" title="Excluir">🗑</button>
-      </div>`;
-      html += `</div>`;
+      html += renderListTaskRow(t, cat, false); // mostra o dia em vez da categoria
     }
     html += `</div></div>`;
   }
   return html + '</div>';
+}
+
+function renderListTaskRow(t, cat, showCategory) {
+  const days = getDays();
+  const dayLabel = t.dia ? days[DAY_KEYS.indexOf(t.dia)] : days[0];
+  const dayClass = t.dia ? "" : "no-day";
+  const tagLabel = showCategory ? cat.nome : dayLabel;
+  const tagStyle = showCategory
+    ? `color:${cat.cor_escura};background:${cat.cor_clara}`
+    : "";
+  let html = `<div class="list-task-row ${t.concluida?"done":""}" onclick="openEditTask('${t.id}')">`;
+  html += `<label class="check-wrap" onclick="event.stopPropagation()">
+    <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
+    <div class="check-box" style="border-color:${cat.cor_escura}"></div>
+  </label>`;
+  html += `<span class="list-task-title">${escHtml(t.titulo)}</span>`;
+  html += `<span class="list-task-day ${showCategory?"":dayClass}" style="${tagStyle}">${tagLabel}</span>`;
+  html += `<div class="list-task-actions">
+    <button onclick="event.stopPropagation();openEditTask('${t.id}')" title="Editar">✏️</button>
+    <button onclick="event.stopPropagation();deleteTask('${t.id}')" title="Excluir">🗑</button>
+  </div>`;
+  html += `</div>`;
+  return html;
 }
 
 // ============================================================
