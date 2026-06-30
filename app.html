@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Agenda Semanal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&family=Roboto:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
   <style>
     /* ── App Shell ── */
@@ -259,8 +259,17 @@
     </div>
     <button class="btn btn-ghost btn-sm" onclick="navWeek(1)">›</button>
     <button class="btn btn-ghost btn-sm" id="today-btn" onclick="goToCurrentWeek()" style="display:none">Ir para semana atual</button>
+    <div class="week-progress" id="week-progress" style="margin-left:8px;">
+      <div class="week-progress-bar"><div class="week-progress-fill" id="week-progress-fill" style="width:0%"></div></div>
+      <span id="week-progress-label">0/0</span>
+    </div>
   </div>
   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Buscar tarefa…" oninput="onSearchInput()"/>
+      <button class="search-clear" id="search-clear" style="display:none" onclick="clearSearch()">✕</button>
+    </div>
     <div class="view-toggle">
       <button class="view-btn active" id="btn-view-week" onclick="setView('week')">📅 Semanal</button>
       <button class="view-btn" id="btn-view-list" onclick="setView('list')">☰ Lista</button>
@@ -270,6 +279,7 @@
       <button class="view-btn" id="btn-group-day" onclick="setListGroup('dia')">Por dia</button>
     </div>
     <button class="btn btn-primary btn-sm" onclick="openAddTask()">+ Tarefa</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportCSV()" title="Exportar CSV">⬇️</button>
     <button class="btn btn-ghost btn-sm" onclick="sendEmail()" title="Enviar e-mail de resumo">📧</button>
   </div>
 </div>
@@ -281,7 +291,7 @@
 
 <!-- ── Modal: Adicionar/Editar Tarefa ── -->
 <div class="modal-backdrop" id="modal-task" style="display:none" onclick="closeTaskModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
+  <div class="modal" style="max-width:520px" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modal-task-title">Nova Tarefa</h3>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="closeTaskModal()">✕</button>
@@ -295,20 +305,72 @@
         <label>Título</label>
         <input type="text" id="task-title" placeholder="O que precisa ser feito?"/>
       </div>
-      <div class="form-field">
-        <label>Dia da semana</label>
-        <select id="task-day"></select>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-field">
+          <label>Dia da semana</label>
+          <select id="task-day"></select>
+        </div>
+        <div class="form-field">
+          <label>Prioridade</label>
+          <select id="task-priority">
+            <option value="">Nenhuma</option>
+            <option value="baixa">🔵 Baixa</option>
+            <option value="media">🟠 Média</option>
+            <option value="alta">🔴 Alta</option>
+          </select>
+        </div>
       </div>
+
+      <div class="form-field">
+        <label class="check-wrap" style="cursor:pointer">
+          <input type="checkbox" id="task-destaque"/>
+          <div class="check-box"></div>
+          <span style="font-size:13px;font-weight:600">⭐ Destacar esta tarefa</span>
+        </label>
+      </div>
+
       <div class="form-field">
         <label>Detalhes <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
-        <textarea id="task-detail" rows="3" placeholder="Informações adicionais…"></textarea>
+        <textarea id="task-detail" rows="2" placeholder="Informações adicionais…"></textarea>
       </div>
+
       <div class="form-field" id="field-week-choice">
         <label>Semana</label>
         <select id="task-week">
           <option value="current">Semana atual</option>
           <option value="next">Próxima semana</option>
         </select>
+      </div>
+
+      <div class="form-field">
+        <label class="check-wrap" style="cursor:pointer" onclick="toggleRecurrenceFields()">
+          <input type="checkbox" id="task-recurrent-toggle"/>
+          <div class="check-box"></div>
+          <span style="font-size:13px;font-weight:600">🔁 Tarefa recorrente</span>
+        </label>
+        <div id="recurrence-fields" style="display:none; margin-top:10px; padding:12px; background:var(--bg); border-radius:var(--radius);">
+          <label style="font-size:12px; font-weight:600; display:block; margin-bottom:8px;">Repetir em quais dias:</label>
+          <div id="recurrence-days" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
+          <label style="font-size:12px; font-weight:600; display:block; margin-bottom:6px;">Repetir até <span style="font-weight:400;color:var(--text-muted)">(deixe em branco para indefinidamente)</span></label>
+          <input type="date" id="recurrence-end" style="width:100%; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-family:inherit;"/>
+          <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">A próxima ocorrência só é criada depois que você marcar a atual como concluída.</p>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label>Depende de <span style="color:var(--text-muted);font-weight:400">(opcional — só tarefas desta semana)</span></label>
+        <select id="task-depends">
+          <option value="">Nenhuma dependência</option>
+        </select>
+      </div>
+
+      <div class="form-field" id="field-subtasks" style="display:none">
+        <label>Subtarefas</label>
+        <div id="subtask-list-modal" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="new-subtask-input" placeholder="Nova subtarefa…" style="flex:1; padding:8px 10px; border:1.5px solid var(--border); border-radius:8px; font-family:inherit; font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtaskToModal();}"/>
+          <button class="btn btn-ghost btn-sm" onclick="addSubtaskToModal()">+ Add</button>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -392,6 +454,29 @@
       </div>
 
       <div class="settings-section">
+        <h4>Fonte</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-field" style="margin:0">
+            <label>Estilo</label>
+            <select id="cfg-font-family">
+              <option value="Inter">Inter (padrão)</option>
+              <option value="Georgia">Georgia (serifada)</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Mono">Monoespaçada</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin:0">
+            <label>Tamanho</label>
+            <select id="cfg-font-size">
+              <option value="small">Pequeno</option>
+              <option value="medium">Médio (padrão)</option>
+              <option value="large">Grande</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h4>Categorias <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openAddCategory()">+ Nova</button></h4>
         <div class="cat-list" id="cat-list-settings"></div>
       </div>
@@ -418,6 +503,8 @@ const DAYS = {
   "de":    ["(Kein Tag)", "Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
 };
 const DAY_KEYS = ["", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const FONT_CLASS = {Inter:"font-inter", Georgia:"font-georgia", Roboto:"font-roboto", Mono:"font-mono"};
+const FONTSIZE_CLASS = {small:"fontsize-small", medium:"fontsize-medium", large:"fontsize-large"};
 
 // ============================================================
 // STATE
@@ -428,7 +515,7 @@ let state = {
   userId: localStorage.getItem("agenda_userId"),
   tasks: [],
   categories: [],
-  config: {lang:"pt-BR", theme:"cotton_candy"},
+  config: {lang:"pt-BR", theme:"cotton_candy", font_family:"Inter", font_size:"medium"},
   weeks: [],
   currentWeek: null,
   currentWeekIndex: 0,
@@ -436,6 +523,8 @@ let state = {
   editingTaskId: null,
   listGroupBy: "categoria", // "categoria" | "dia"
   collapsedCats: new Set(), // ids de categorias colapsadas na visão semanal
+  searchTerm: "",
+  modalSubtasks: [], // subtarefas sendo editadas no modal (antes de salvar)
 };
 
 // ============================================================
@@ -603,26 +692,68 @@ function render() {
   const main = document.getElementById("main-content");
   if (state.view === "week") main.innerHTML = renderWeekView();
   else main.innerHTML = renderListView();
+  updateWeekProgress();
 }
 
 function getCatById(id) { return state.categories.find(c=>c.id===id) || {nome:"—", cor_escura:"#64748b", cor_clara:"#f1f5f9"}; }
 function getLang() { return state.config.lang || "pt-BR"; }
 function getDays() { return DAYS[getLang()] || DAYS["pt-BR"]; }
 
+function getTaskById(id) { return state.tasks.find(t=>t.id===id); }
+
+function isTaskBlocked(t) {
+  if (!t.depende_de) return false;
+  const dep = getTaskById(t.depende_de);
+  if (!dep) return false; // tarefa-pai não existe mais nesta lista — não bloqueia
+  return !dep.concluida;
+}
+
+function matchesSearch(t) {
+  if (!state.searchTerm) return true;
+  return t.titulo.toLowerCase().includes(state.searchTerm.toLowerCase());
+}
+
+function getTodayDayKey() {
+  const map = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  return map[new Date().getDay()];
+}
+
+function isCurrentWeekActive() {
+  return state.currentWeek === getCurrentWeekKey();
+}
+
+function updateWeekProgress() {
+  const total = state.tasks.length;
+  const done  = state.tasks.filter(t=>t.concluida).length;
+  const pct = total ? Math.round((done/total)*100) : 0;
+  const fillEl = document.getElementById("week-progress-fill");
+  const labelEl = document.getElementById("week-progress-label");
+  if (fillEl)  fillEl.style.width = pct + "%";
+  if (labelEl) labelEl.textContent = `${done}/${total}`;
+}
+
 function renderWeekView() {
   const days = getDays();
+  const todayKey = getTodayDayKey();
+  const showToday = isCurrentWeekActive();
 
   let html = '<div class="week-grid">';
   // Header
   html += `<div class="week-grid-header cat-col">${days[0]||"Categoria"}</div>`;
-  for (let i=1;i<=7;i++) html += `<div class="week-grid-header">${days[i]}</div>`;
+  for (let i=1;i<=7;i++) {
+    const isToday = showToday && DAY_KEYS[i] === todayKey;
+    html += `<div class="week-grid-header ${isToday?'is-today':''}">${days[i]}</div>`;
+  }
+
+  // Filtro de busca aplicado a todas as tarefas
+  const visibleTasks = state.tasks.filter(matchesSearch);
 
   // Unscheduled tasks (sem dia)
-  const unscheduled = state.tasks.filter(t=>!t.dia);
+  const unscheduled = visibleTasks.filter(t=>!t.dia);
 
   // Por categoria
   for (const cat of state.categories) {
-    const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id && t.dia);
+    const catTasks = visibleTasks.filter(t=>t.categoria_id===cat.id && t.dia);
     const catUnscheduled = unscheduled.filter(t=>t.categoria_id===cat.id);
     if (catTasks.length === 0 && catUnscheduled.length === 0) continue;
     const total = catTasks.length + catUnscheduled.length;
@@ -640,8 +771,9 @@ function renderWeekView() {
     html += `<div class="week-cell cat-label" style="background:${cat.cor_escura}22;color:${cat.cor_escura}">${cat.nome}</div>`;
     for (let d=1; d<=7; d++) {
       const dayKey = DAY_KEYS[d];
+      const isToday = showToday && dayKey === todayKey;
       const dayTasks = catTasks.filter(t=>t.dia===dayKey);
-      html += `<div class="week-cell" style="background:${cat.cor_clara}55" ondragover="event.preventDefault()" ondrop="dropTask(event,'${cat.id}','${dayKey}')">`;
+      html += `<div class="week-cell ${isToday?'is-today-col':''}" style="background:${cat.cor_clara}55" ondragover="event.preventDefault()" ondrop="dropTask(event,'${cat.id}','${dayKey}')">`;
       for (const t of dayTasks) {
         html += renderTaskChip(t, cat);
       }
@@ -667,28 +799,64 @@ function renderWeekView() {
   return html;
 }
 
+function priorityDot(t) {
+  if (!t.prioridade) return "";
+  return `<span class="priority-dot priority-${t.prioridade}" title="Prioridade ${t.prioridade}"></span>`;
+}
+
+function starIcon(t) {
+  return `<span class="star-icon ${t.destaque?'active':''}" onclick="event.stopPropagation();toggleDestaque('${t.id}')" title="Destacar">${t.destaque?'⭐':'☆'}</span>`;
+}
+
+function renderSubtasksInline(t) {
+  if (!t.subtarefas || t.subtarefas.length === 0) return "";
+  let html = `<div class="subtask-list" onclick="event.stopPropagation()">`;
+  t.subtarefas.forEach(st => {
+    html += `<label class="subtask-row ${st.concluida?'done':''}">
+      <input type="checkbox" ${st.concluida?"checked":""} onchange="toggleSubtaskInline('${st.id}','${t.id}')"/>
+      <span>${escHtml(st.titulo)}</span>
+    </label>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
 function renderTaskChip(t, cat, unscheduled=false) {
   const doneClass = t.concluida ? "done" : "";
   const unsClass  = unscheduled ? "unscheduled" : "";
-  return `<div class="task-chip ${doneClass} ${unsClass}" draggable="true"
+  const blocked = isTaskBlocked(t);
+  const blockedAttrs = blocked ? `draggable="false"` : `draggable="true" ondragstart="dragTask(event,'${t.id}')"`;
+  return `<div class="task-chip ${doneClass} ${unsClass} ${blocked?'blocked':''}" ${blockedAttrs}
     style="border-left-color:${cat.cor_escura}"
-    ondragstart="dragTask(event,'${t.id}')"
     onclick="openEditTask('${t.id}')">
     <div class="task-check" onclick="event.stopPropagation()">
       <label class="check-wrap" onclick="event.stopPropagation()">
-        <input type="checkbox" ${t.concluida?"checked":""} onclick="event.stopPropagation()" onchange="toggleTask('${t.id}')"/>
+        <input type="checkbox" ${t.concluida?"checked":""} ${blocked?"disabled":""} onclick="event.stopPropagation()" onchange="toggleTask('${t.id}')"/>
         <div class="check-box"></div>
       </label>
     </div>
-    <span class="task-title">${escHtml(t.titulo)}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:4px;">
+        ${priorityDot(t)}
+        <span class="task-title" style="flex:1">${escHtml(t.titulo)}</span>
+        ${blocked?'<span class="dep-lock-icon" title="Bloqueada até a tarefa da qual depende ser concluída">🔒</span>':''}
+        ${starIcon(t)}
+      </div>
+      ${renderSubtasksInline(t)}
+    </div>
   </div>`;
 }
 
 function renderListView() {
   let html = '<div class="list-view">';
   const days = getDays();
-  if (state.categories.length === 0 || state.tasks.length === 0) {
-    html += `<div class="empty-state"><div class="empty-icon">📭</div><p>Nenhuma tarefa esta semana. Clique em <strong>+ Tarefa</strong> para começar.</p></div>`;
+  const visibleTasks = state.tasks.filter(matchesSearch);
+
+  if (state.categories.length === 0 || visibleTasks.length === 0) {
+    const msg = state.searchTerm
+      ? `Nenhuma tarefa encontrada para "${escHtml(state.searchTerm)}".`
+      : `Nenhuma tarefa esta semana. Clique em <strong>+ Tarefa</strong> para começar.`;
+    html += `<div class="empty-state"><div class="empty-icon">📭</div><p>${msg}</p></div>`;
     return html + '</div>';
   }
 
@@ -697,13 +865,14 @@ function renderListView() {
     for (let d = 1; d <= 8; d++) {
       const dayKey = d === 8 ? "" : DAY_KEYS[d];
       const dayLabel = d === 8 ? days[0] : days[d];
-      const dayTasks = state.tasks.filter(t => (t.dia || "") === dayKey);
+      const dayTasks = visibleTasks.filter(t => (t.dia || "") === dayKey);
       if (dayTasks.length === 0) continue;
       const done = dayTasks.filter(t=>t.concluida).length;
+      const isToday = isCurrentWeekActive() && dayKey === getTodayDayKey();
 
       html += `<div class="list-cat-block">`;
-      html += `<div class="list-cat-header" style="background:var(--text);color:var(--surface)">`;
-      html += `<div><div class="list-cat-name">${dayLabel}</div><div class="list-cat-sub">${done}/${dayTasks.length} concluídas</div></div>`;
+      html += `<div class="list-cat-header" style="background:${isToday?'var(--primary)':'var(--text)'};color:var(--surface)">`;
+      html += `<div><div class="list-cat-name">${dayLabel}${isToday?' • hoje':''}</div><div class="list-cat-sub">${done}/${dayTasks.length} concluídas</div></div>`;
       html += `</div><div class="list-tasks">`;
       for (const t of dayTasks) {
         const cat = getCatById(t.categoria_id);
@@ -716,7 +885,7 @@ function renderListView() {
 
   // Agrupado por categoria (padrão)
   for (const cat of state.categories) {
-    const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id);
+    const catTasks = visibleTasks.filter(t=>t.categoria_id===cat.id);
     if (catTasks.length === 0) continue;
     const done = catTasks.filter(t=>t.concluida).length;
     html += `<div class="list-cat-block">`;
@@ -740,13 +909,24 @@ function renderListTaskRow(t, cat, showCategory) {
   const tagStyle = showCategory
     ? `color:${cat.cor_escura};background:${cat.cor_clara}`
     : "";
-  let html = `<div class="list-task-row ${t.concluida?"done":""}" onclick="openEditTask('${t.id}')">`;
+  const blocked = isTaskBlocked(t);
+  let html = `<div class="list-task-row ${t.concluida?"done":""} ${blocked?"blocked":""}" onclick="openEditTask('${t.id}')">`;
   html += `<label class="check-wrap" onclick="event.stopPropagation()">
-    <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
+    <input type="checkbox" ${t.concluida?"checked":""} ${blocked?"disabled":""} onchange="toggleTask('${t.id}')"/>
     <div class="check-box" style="border-color:${cat.cor_escura}"></div>
   </label>`;
-  html += `<span class="list-task-title">${escHtml(t.titulo)}</span>`;
+  html += `<div style="flex:1;min-width:0;">`;
+  html += `<div style="display:flex;align-items:center;gap:5px;">`;
+  html += priorityDot(t);
+  html += `<span class="list-task-title" id="ltt-${t.id}"
+      ondblclick="event.stopPropagation();startInlineEdit('${t.id}', this)"
+      title="Duplo clique para editar rapidamente">${escHtml(t.titulo)}</span>`;
+  if (blocked) html += `<span class="dep-lock-icon" title="Bloqueada até a tarefa da qual depende ser concluída">🔒</span>`;
+  html += `</div>`;
+  html += renderSubtasksInline(t);
+  html += `</div>`;
   html += `<span class="list-task-day ${showCategory?"":dayClass}" style="${tagStyle}">${tagLabel}</span>`;
+  html += starIcon(t);
   html += `<div class="list-task-actions">
     <button onclick="event.stopPropagation();openEditTask('${t.id}')" title="Editar">✏️</button>
     <button onclick="event.stopPropagation();deleteTask('${t.id}')" title="Excluir">🗑</button>
@@ -760,14 +940,20 @@ function renderListTaskRow(t, cat, showCategory) {
 // ============================================================
 function openAddTask(catId="", dayKey="") {
   state.editingTaskId = null;
+  state.modalSubtasks = [];
   document.getElementById("modal-task-title").textContent = "Nova Tarefa";
   document.getElementById("btn-save-task").textContent = "Salvar tarefa";
   document.getElementById("task-title").value = "";
   document.getElementById("task-detail").value = "";
+  document.getElementById("task-priority").value = "";
+  document.getElementById("task-destaque").checked = false;
   populateCatSelect(catId);
   populateDaySelect(dayKey);
   document.getElementById("task-week").value = "current";
   document.getElementById("field-week-choice").style.display = "";
+  document.getElementById("field-subtasks").style.display = "none"; // só após criar a tarefa
+  resetRecurrenceFields();
+  populateDependsSelect("");
   document.getElementById("modal-task").style.display = "flex";
   setTimeout(()=>document.getElementById("task-title").focus(), 100);
 }
@@ -776,13 +962,35 @@ function openEditTask(id) {
   const t = state.tasks.find(t=>t.id===id);
   if (!t) return;
   state.editingTaskId = id;
+  state.modalSubtasks = (t.subtarefas || []).map(s=>({...s}));
   document.getElementById("modal-task-title").textContent = "Editar Tarefa";
   document.getElementById("btn-save-task").textContent = "Salvar alterações";
   document.getElementById("task-title").value = t.titulo;
   document.getElementById("task-detail").value = t.detalhe || "";
+  document.getElementById("task-priority").value = t.prioridade || "";
+  document.getElementById("task-destaque").checked = !!t.destaque;
   populateCatSelect(t.categoria_id);
   populateDaySelect(t.dia || "");
   document.getElementById("field-week-choice").style.display = "none";
+  document.getElementById("field-subtasks").style.display = "";
+  renderSubtaskListModal();
+
+  // Recorrência
+  resetRecurrenceFields();
+  if (t.recorrencia) {
+    try {
+      const rec = JSON.parse(t.recorrencia);
+      document.getElementById("task-recurrent-toggle").checked = true;
+      toggleRecurrenceFields();
+      (rec.dias || []).forEach(d => {
+        const cb = document.querySelector(`#recurrence-days input[value="${d}"]`);
+        if (cb) cb.checked = true;
+      });
+      document.getElementById("recurrence-end").value = rec.fim || "";
+    } catch(e) {}
+  }
+
+  populateDependsSelect(t.depende_de || "", t.id);
   document.getElementById("modal-task").style.display = "flex";
   setTimeout(()=>document.getElementById("task-title").focus(), 100);
 }
@@ -802,6 +1010,80 @@ function populateDaySelect(selectedKey="") {
   ).join("");
 }
 
+function populateDependsSelect(selectedId="", excludeId="") {
+  const sel = document.getElementById("task-depends");
+  const days = getDays();
+  const lang0 = days[0];
+  // Apenas tarefas da MESMA semana, excluindo a própria tarefa (caso edição)
+  const options = state.tasks
+    .filter(t => t.id !== excludeId)
+    .map(t => {
+      const dayLabel = t.dia ? days[DAY_KEYS.indexOf(t.dia)] : lang0;
+      return `<option value="${t.id}" ${t.id===selectedId?"selected":""}>${escHtml(t.titulo)} (${dayLabel})</option>`;
+    }).join("");
+  sel.innerHTML = `<option value="">Nenhuma dependência</option>` + options;
+}
+
+function resetRecurrenceFields() {
+  document.getElementById("task-recurrent-toggle").checked = false;
+  document.getElementById("recurrence-fields").style.display = "none";
+  document.getElementById("recurrence-end").value = "";
+  const days = getDays();
+  const container = document.getElementById("recurrence-days");
+  container.innerHTML = DAY_KEYS.slice(1).map((dk,i) => `
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;background:var(--surface);padding:5px 9px;border-radius:99px;border:1px solid var(--border);cursor:pointer;">
+      <input type="checkbox" value="${dk}" style="margin:0;"/> ${days[i+1].slice(0,3)}
+    </label>`).join("");
+}
+
+function toggleRecurrenceFields() {
+  const checked = document.getElementById("task-recurrent-toggle").checked;
+  document.getElementById("recurrence-fields").style.display = checked ? "" : "none";
+}
+
+// ── Subtarefas dentro do modal ──
+function renderSubtaskListModal() {
+  const container = document.getElementById("subtask-list-modal");
+  if (state.modalSubtasks.length === 0) {
+    container.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">Nenhuma subtarefa ainda.</p>`;
+    return;
+  }
+  container.innerHTML = state.modalSubtasks.map(st => `
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label class="check-wrap" style="flex:1">
+        <input type="checkbox" ${st.concluida?"checked":""} onchange="toggleModalSubtask('${st.id}')"/>
+        <div class="check-box"></div>
+        <span style="font-size:13px;${st.concluida?'text-decoration:line-through;opacity:.6;':''}">${escHtml(st.titulo)}</span>
+      </label>
+      <button class="btn btn-ghost btn-sm" style="padding:2px 6px" onclick="removeModalSubtask('${st.id}')">✕</button>
+    </div>`).join("");
+}
+
+function addSubtaskToModal() {
+  const input = document.getElementById("new-subtask-input");
+  const titulo = input.value.trim();
+  if (!titulo) return;
+  // Subtarefa nova ainda sem id real — usamos id temporário prefixado
+  state.modalSubtasks.push({id: "tmp_"+Date.now(), titulo, concluida: false, _new: true});
+  input.value = "";
+  renderSubtaskListModal();
+}
+
+function toggleModalSubtask(id) {
+  const st = state.modalSubtasks.find(s=>s.id===id);
+  if (!st) return;
+  st.concluida = !st.concluida;
+  if (!st._new) api({action:"toggleSubtask", id, concluida: st.concluida});
+  renderSubtaskListModal();
+}
+
+function removeModalSubtask(id) {
+  const st = state.modalSubtasks.find(s=>s.id===id);
+  state.modalSubtasks = state.modalSubtasks.filter(s=>s.id!==id);
+  if (st && !st._new) api({action:"deleteSubtask", id});
+  renderSubtaskListModal();
+}
+
 function closeTaskModal(e) {
   if (!e || e.target === document.getElementById("modal-task"))
     document.getElementById("modal-task").style.display = "none";
@@ -815,10 +1097,23 @@ async function saveTask() {
   const isEditing = !!state.editingTaskId;
 
   await withLoading(btn, isEditing ? "Salvando…" : "Adicionando…", async () => {
-    const catId   = document.getElementById("task-cat").value;
-    const dayKey  = document.getElementById("task-day").value;
-    const detail  = document.getElementById("task-detail").value.trim();
+    const catId    = document.getElementById("task-cat").value;
+    const dayKey   = document.getElementById("task-day").value;
+    const detail   = document.getElementById("task-detail").value.trim();
     const weekPref = document.getElementById("task-week").value;
+    const priority = document.getElementById("task-priority").value;
+    const destaque = document.getElementById("task-destaque").checked;
+    const dependeDe= document.getElementById("task-depends").value;
+
+    // Recorrência
+    let recorrencia = "";
+    if (document.getElementById("task-recurrent-toggle").checked) {
+      const dias = Array.from(document.querySelectorAll("#recurrence-days input:checked")).map(cb=>cb.value);
+      if (dias.length > 0) {
+        const fim = document.getElementById("recurrence-end").value || "";
+        recorrencia = JSON.stringify({dias, fim});
+      }
+    }
 
     let semana = state.currentWeek;
     if (!isEditing && weekPref === "next") {
@@ -830,10 +1125,22 @@ async function saveTask() {
     }
 
     if (isEditing) {
-      await api({action:"updateTask", id:state.editingTaskId, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+      await api({
+        action:"updateTask", id:state.editingTaskId, titulo:title, categoria_id:catId,
+        dia:dayKey, detalhe:detail, prioridade:priority, destaque, recorrencia, depende_de: dependeDe
+      });
       toast("✅ Tarefa atualizada!");
     } else {
-      await api({action:"addTask", semana, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+      const res = await api({
+        action:"addTask", semana, titulo:title, categoria_id:catId, dia:dayKey,
+        detalhe:detail, prioridade:priority, destaque, recorrencia, depende_de: dependeDe
+      });
+      // Salva subtarefas adicionadas antes mesmo de a tarefa existir
+      if (res && res.ok && state.modalSubtasks.length > 0) {
+        for (const st of state.modalSubtasks) {
+          await api({action:"addSubtask", tarefa_id: res.id, titulo: st.titulo});
+        }
+      }
       toast("✅ Tarefa adicionada!");
     }
 
@@ -845,9 +1152,105 @@ async function saveTask() {
 async function toggleTask(id) {
   const t = state.tasks.find(t=>t.id===id);
   if (!t) return;
-  t.concluida = !t.concluida;
+  if (isTaskBlocked(t)) {
+    toast("🔒 Esta tarefa depende de outra que ainda não foi concluída.");
+    render(); // reverte o checkbox visualmente
+    return;
+  }
+  const novoEstado = !t.concluida;
+  t.concluida = novoEstado;
   render();
-  await api({action:"updateTask", id, concluida:t.concluida});
+  const r = await api({action:"updateTask", id, concluida:novoEstado});
+  if (r && !r.ok && r.error === "blocked_by_dependency") {
+    t.concluida = !novoEstado; // reverte
+    toast("🔒 Esta tarefa depende de outra que ainda não foi concluída.");
+    render();
+  } else if (novoEstado && t.recorrencia) {
+    // Pode ter gerado uma nova ocorrência na próxima semana — recarrega lista de semanas
+    await loadWeeks();
+  }
+}
+
+async function toggleDestaque(id) {
+  const t = state.tasks.find(t=>t.id===id);
+  if (!t) return;
+  t.destaque = !t.destaque;
+  render();
+  await api({action:"updateTask", id, destaque:t.destaque});
+}
+
+async function toggleSubtaskInline(subId, taskId) {
+  const t = state.tasks.find(t=>t.id===taskId);
+  const st = t && t.subtarefas.find(s=>s.id===subId);
+  if (!st) return;
+  st.concluida = !st.concluida;
+  render();
+  await api({action:"toggleSubtask", id: subId, concluida: st.concluida});
+}
+
+// ── Edição rápida inline (duplo clique no título, na visão Lista) ──
+function startInlineEdit(taskId, el) {
+  const t = getTaskById(taskId);
+  if (!t || isTaskBlocked(t)) return;
+  el.contentEditable = "true";
+  el.focus();
+  document.execCommand("selectAll", false, null);
+
+  const finish = async (save) => {
+    el.contentEditable = "false";
+    el.removeEventListener("blur", onBlur);
+    el.removeEventListener("keydown", onKeydown);
+    const newTitle = el.textContent.trim();
+    if (save && newTitle && newTitle !== t.titulo) {
+      t.titulo = newTitle;
+      await api({action:"updateTask", id: taskId, titulo: newTitle});
+      toast("✅ Tarefa atualizada!");
+    } else {
+      el.textContent = t.titulo; // reverte se vazio ou cancelado
+    }
+  };
+  const onBlur = () => finish(true);
+  const onKeydown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+    if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  };
+  el.addEventListener("blur", onBlur);
+  el.addEventListener("keydown", onKeydown);
+}
+
+// ── Busca rápida ──
+let _searchDebounce;
+function onSearchInput() {
+  clearTimeout(_searchDebounce);
+  const val = document.getElementById("search-input").value;
+  document.getElementById("search-clear").style.display = val ? "" : "none";
+  _searchDebounce = setTimeout(() => {
+    state.searchTerm = val.trim();
+    render();
+  }, 150);
+}
+function clearSearch() {
+  document.getElementById("search-input").value = "";
+  document.getElementById("search-clear").style.display = "none";
+  state.searchTerm = "";
+  render();
+}
+
+// ── Exportar CSV ──
+async function exportCSV() {
+  const btn = document.querySelector('[onclick="exportCSV()"]');
+  await withLoading(btn, "Exportando…", async () => {
+    const r = await api({action:"exportCSV"});
+    if (!r || !r.ok) { toast("⚠️ Erro ao exportar."); return; }
+    const blob = new Blob(["\uFEFF" + r.csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `agenda-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("⬇️ CSV exportado!");
+  });
 }
 
 async function deleteTask(id) {
@@ -862,8 +1265,17 @@ let draggedId = null;
 function dragTask(e, id) { draggedId = id; e.dataTransfer.effectAllowed="move"; }
 async function dropTask(e, catId, dayKey) {
   if (!draggedId) return;
-  await api({action:"updateTask", id:draggedId, categoria_id:catId, dia:dayKey});
+  const t = getTaskById(draggedId);
+  if (t && isTaskBlocked(t)) {
+    toast("🔒 Esta tarefa depende de outra que ainda não foi concluída.");
+    draggedId = null;
+    return;
+  }
+  const r = await api({action:"updateTask", id:draggedId, categoria_id:catId, dia:dayKey});
   draggedId = null;
+  if (r && !r.ok && r.error === "blocked_by_dependency") {
+    toast("🔒 Esta tarefa depende de outra que ainda não foi concluída.");
+  }
   await loadTasks();
 }
 
@@ -877,6 +1289,8 @@ async function openSettings() {
   document.getElementById("cfg-email").value     = c.email || "";
   document.getElementById("cfg-send-day").value  = c.send_day || "Monday";
   document.getElementById("cfg-send-hour").value = c.send_hour ?? 8;
+  document.getElementById("cfg-font-family").value = c.font_family || "Inter";
+  document.getElementById("cfg-font-size").value   = c.font_size || "medium";
 
   // Tema
   document.querySelectorAll(".theme-swatch").forEach(s=>{
@@ -956,7 +1370,11 @@ function pickTheme(el) {
 function applyThemeFromConfig() {
   const map = {cotton_candy:"cotton-candy", sobrio:"sobrio", cinza:"cinza", vibrante:"vibrante", dark:"dark", minimal:"minimal"};
   const cls = "theme-" + (map[state.config.theme] || "cotton-candy");
-  document.body.className = document.body.className.replace(/theme-\S+/g,"").trim() + " " + cls;
+  const fontCls = FONT_CLASS[state.config.font_family] || "font-inter";
+  const sizeCls = FONTSIZE_CLASS[state.config.font_size] || "fontsize-medium";
+  document.body.className = document.body.className
+    .replace(/theme-\S+/g,"").replace(/font-\S+/g,"").replace(/fontsize-\S+/g,"")
+    .trim() + ` ${cls} ${fontCls} ${sizeCls}`;
   if (state.config.theme === "custom" && state.config.custom_theme) applyCustomThemeDirect(state.config.custom_theme);
 }
 
@@ -991,6 +1409,8 @@ async function saveSettings() {
     state.config.email      = document.getElementById("cfg-email").value;
     state.config.send_day   = document.getElementById("cfg-send-day").value;
     state.config.send_hour  = parseInt(document.getElementById("cfg-send-hour").value);
+    state.config.font_family= document.getElementById("cfg-font-family").value;
+    state.config.font_size  = document.getElementById("cfg-font-size").value;
     await Promise.all([
       api({action:"saveConfig", config: state.config}),
       api({action:"saveCategories", categories: state.categories})
