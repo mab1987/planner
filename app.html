@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agenda Semanal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    /* ── App Shell ── */
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+    .app-logo { font-size: 22px; font-weight: 700; color: var(--primary); display:flex; align-items:center; gap:8px; }
+    .app-logo span { font-size: 20px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .user-chip {
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      background: var(--surface2); padding: 5px 12px; border-radius: 99px;
+    }
+
+    /* ── Week bar ── */
+    .week-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    .week-nav { display: flex; align-items: center; gap: 8px; }
+    .week-label { font-size: 15px; font-weight: 600; color: var(--text); }
+    .week-tag {
+      font-size: 12px; background: var(--primary-light); color: var(--primary);
+      padding: 3px 10px; border-radius: 99px; font-weight: 600;
+    }
+    .view-toggle {
+      display: flex; background: var(--bg); border-radius: var(--radius); padding: 3px; gap: 3px;
+    }
+    .view-btn {
+      padding: 6px 14px; border: none; background: transparent; border-radius: calc(var(--radius) - 2px);
+      font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; font-family: inherit; transition: all .18s;
+    }
+    .view-btn.active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); }
+
+    /* ── Main ── */
+    .app-main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    /* ── VISÃO SEMANAL ── */
+    .week-grid {
+      display: grid;
+      grid-template-columns: 180px repeat(7, 1fr);
+      gap: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+    .week-grid-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 12px;
+      font-size: 13px; font-weight: 600; text-align: center;
+    }
+    .week-grid-header.cat-col { text-align: left; }
+    .week-grid-header.today { background: var(--accent); }
+
+    .cat-header-row {
+      grid-column: 1 / -1;
+      padding: 8px 14px;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cat-header-row .cat-count {
+      font-size: 11px; font-weight: 600; opacity: .75;
+      background: rgba(255,255,255,.25); padding: 1px 7px; border-radius: 99px;
+    }
+
+    .week-cell {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-collapse: collapse;
+      padding: 6px 8px;
+      min-height: 56px;
+      vertical-align: top;
+    }
+    .week-cell.cat-label {
+      background: var(--surface2);
+      font-size: 12px; color: var(--text-muted); font-weight: 500;
+      display: flex; align-items: center; padding: 8px 12px;
+    }
+
+    .task-chip {
+      background: var(--surface2);
+      border-left: 3px solid var(--primary);
+      border-radius: 6px;
+      padding: 6px 8px;
+      margin-bottom: 5px;
+      display: flex; align-items: flex-start; gap: 6px;
+      cursor: pointer;
+      transition: transform .12s, box-shadow .12s;
+      font-size: 13px;
+    }
+    .task-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+    .task-chip.done { opacity: .55; }
+    .task-chip.done .task-title { text-decoration: line-through; }
+    .task-chip.unscheduled { border-left-color: var(--text-muted); border-style: dashed; }
+    .task-title { flex: 1; color: var(--text); line-height: 1.35; word-break: break-word; }
+    .task-check { flex-shrink: 0; margin-top: 1px; }
+
+    .add-task-inline {
+      margin-top: 4px; width: 100%;
+      display: flex; align-items: center; gap: 4px;
+      opacity: 0; transition: opacity .15s;
+    }
+    .week-cell:hover .add-task-inline { opacity: 1; }
+    .add-task-inline button {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 18px; line-height: 1; padding: 2px; border-radius: 50%;
+      transition: color .15s, background .15s;
+    }
+    .add-task-inline button:hover { color: var(--primary); background: var(--primary-light); }
+
+    /* Coluna sem dia */
+    .unscheduled-col {
+      margin-top: 24px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .unscheduled-col-header {
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      font-size: 14px; font-weight: 600; color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .unscheduled-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── VISÃO LISTA ── */
+    .list-view { display: flex; flex-direction: column; gap: 16px; }
+    .list-cat-block {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .list-cat-header {
+      padding: 12px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .list-cat-name { font-size: 15px; font-weight: 700; }
+    .list-cat-sub { font-size: 12px; opacity: .7; margin-top: 2px; }
+    .list-tasks { padding: 0 0 8px; }
+    .list-task-row {
+      padding: 10px 18px;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--border);
+      transition: background .12s; cursor: pointer;
+    }
+    .list-task-row:last-child { border-bottom: none; }
+    .list-task-row:hover { background: var(--bg); }
+    .list-task-row.done .list-task-title { text-decoration: line-through; opacity: .5; }
+    .list-task-title { flex: 1; font-size: 14px; }
+    .list-task-day {
+      font-size: 12px; font-weight: 600;
+      color: var(--primary); background: var(--primary-light);
+      padding: 2px 8px; border-radius: 99px;
+    }
+    .list-task-day.no-day { color: var(--text-muted); background: var(--surface2); }
+
+    .list-task-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
+    .list-task-row:hover .list-task-actions { opacity: 1; }
+    .list-task-actions button {
+      background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+      font-size: 14px; transition: background .12s;
+    }
+    .list-task-actions button:hover { background: var(--surface2); }
+
+    /* ── Loading ── */
+    .loading-state {
+      display: flex; align-items: center; justify-content: center;
+      padding: 64px; color: var(--text-muted); gap: 12px; flex-direction: column;
+    }
+    .empty-state {
+      text-align: center; padding: 48px 24px; color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; }
+
+    /* ── Settings Panel ── */
+    .settings-section { margin-bottom: 28px; }
+    .settings-section h4 {
+      font-size: 13px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--text-muted); margin-bottom: 14px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+
+    .theme-picker { display: flex; flex-wrap: wrap; gap: 10px; }
+    .theme-swatch {
+      width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: all .18s; position: relative;
+    }
+    .theme-swatch.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .theme-swatch[title]::after {
+      content: attr(title);
+      position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: var(--text-muted); white-space: nowrap;
+    }
+
+    .color-grid { display: flex; gap: 8px; align-items: center; }
+    .color-preview { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+
+    .cat-list { display: flex; flex-direction: column; gap: 8px; }
+    .cat-item {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg); padding: 8px 12px; border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .cat-dot { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; }
+    .cat-item-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .cat-item-actions { display: flex; gap: 4px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .week-grid { grid-template-columns: 120px repeat(7, minmax(100px, 1fr)); overflow-x: auto; display: block; }
+      .week-grid { display: -webkit-box; overflow-x: scroll; }
+      .app-main { padding: 12px; }
+      .week-bar { padding: 8px 12px; }
+    }
+  </style>
+</head>
+<body class="theme-cotton-candy">
+
+<!-- ── Header ── -->
+<header class="app-header">
+  <div class="app-logo"><span>🗓️</span> Agenda</div>
+  <div class="header-right">
+    <div class="user-chip" id="user-display"></div>
+    <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙️ Config</button>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button>
+  </div>
+</header>
+
+<!-- ── Week bar ── -->
+<div class="week-bar">
+  <div class="week-nav">
+    <button class="btn btn-ghost btn-sm" onclick="navWeek(-1)">‹</button>
+    <div>
+      <span class="week-label" id="week-label">Carregando…</span>
+      <span class="week-tag" id="week-tag">semana atual</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="navWeek(1)">›</button>
+    <button class="btn btn-ghost btn-sm" id="today-btn" onclick="goToCurrentWeek()" style="display:none">Ir para semana atual</button>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-view-week" onclick="setView('week')">📅 Semanal</button>
+      <button class="view-btn" id="btn-view-list" onclick="setView('list')">☰ Lista</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="openAddTask()">+ Tarefa</button>
+    <button class="btn btn-ghost btn-sm" onclick="sendEmail()" title="Enviar e-mail de resumo">📧</button>
+  </div>
+</div>
+
+<!-- ── Main content ── -->
+<main class="app-main" id="main-content">
+  <div class="loading-state"><div class="spinner"></div><span>Carregando…</span></div>
+</main>
+
+<!-- ── Modal: Adicionar/Editar Tarefa ── -->
+<div class="modal-backdrop" id="modal-task" style="display:none" onclick="closeTaskModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modal-task-title">Nova Tarefa</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeTaskModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field">
+        <label>Categoria</label>
+        <select id="task-cat"></select>
+      </div>
+      <div class="form-field">
+        <label>Título</label>
+        <input type="text" id="task-title" placeholder="O que precisa ser feito?"/>
+      </div>
+      <div class="form-field">
+        <label>Dia da semana</label>
+        <select id="task-day"></select>
+      </div>
+      <div class="form-field">
+        <label>Detalhes <span style="color:var(--text-muted);font-weight:400">(opcional)</span></label>
+        <textarea id="task-detail" rows="3" placeholder="Informações adicionais…"></textarea>
+      </div>
+      <div class="form-field" id="field-week-choice">
+        <label>Semana</label>
+        <select id="task-week">
+          <option value="current">Semana atual</option>
+          <option value="next">Próxima semana</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeTaskModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save-task" onclick="saveTask()">Salvar tarefa</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Configurações ── -->
+<div class="modal-backdrop" id="modal-settings" style="display:none" onclick="closeSettings(event)">
+  <div class="modal" style="max-width:560px" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>⚙️ Configurações</h3>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="settings-section">
+        <h4>Idioma</h4>
+        <div class="form-field" style="margin:0">
+          <select id="cfg-lang">
+            <option value="pt-BR">🇧🇷 Português (BR)</option>
+            <option value="en">🇺🇸 English</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="de">🇩🇪 Deutsch</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h4>E-mail semanal</h4>
+        <div class="form-field">
+          <label>Endereço de e-mail</label>
+          <input type="email" id="cfg-email" placeholder="seu@email.com"/>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+          <div class="form-field" style="margin:0">
+            <label>Dia de envio</label>
+            <select id="cfg-send-day">
+              <option value="Monday">Segunda-feira</option>
+              <option value="Tuesday">Terça-feira</option>
+              <option value="Wednesday">Quarta-feira</option>
+              <option value="Thursday">Quinta-feira</option>
+              <option value="Friday">Sexta-feira</option>
+              <option value="Saturday">Sábado</option>
+              <option value="Sunday">Domingo</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin:0">
+            <label>Horário (0–23h)</label>
+            <input type="number" id="cfg-send-hour" min="0" max="23" value="8"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h4>Tema visual</h4>
+        <div class="theme-picker" id="theme-picker">
+          <div class="theme-swatch" title="Cotton Candy" data-theme="cotton_candy" style="background:linear-gradient(135deg,#f8d7ea,#d4689a)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Sóbrio" data-theme="sobrio" style="background:linear-gradient(135deg,#dbeafe,#1e40af)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Cinza" data-theme="cinza" style="background:linear-gradient(135deg,#f3f4f6,#374151)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Vibrante" data-theme="vibrante" style="background:linear-gradient(135deg,#ede9fe,#7c3aed)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Dark" data-theme="dark" style="background:linear-gradient(135deg,#1e293b,#818cf8)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Minimal" data-theme="minimal" style="background:linear-gradient(135deg,#ffffff,#000000)" onclick="pickTheme(this)"></div>
+          <div class="theme-swatch" title="Personalizado" data-theme="custom" style="background:conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)" onclick="pickTheme(this)"></div>
+        </div>
+        <div id="custom-theme-builder" style="display:none; margin-top:20px;">
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Personalize as cores principais:</p>
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
+            <div class="form-field" style="margin:0"><label>Primária</label><input type="color" id="ct-primary" value="#7c3aed"/></div>
+            <div class="form-field" style="margin:0"><label>Primária clara</label><input type="color" id="ct-primary-light" value="#ede9fe"/></div>
+            <div class="form-field" style="margin:0"><label>Accent</label><input type="color" id="ct-accent" value="#db2777"/></div>
+            <div class="form-field" style="margin:0"><label>Fundo</label><input type="color" id="ct-bg" value="#faf5ff"/></div>
+            <div class="form-field" style="margin:0"><label>Superfície</label><input type="color" id="ct-surface" value="#ffffff"/></div>
+            <div class="form-field" style="margin:0"><label>Texto</label><input type="color" id="ct-text" value="#1e1b4b"/></div>
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="applyCustomTheme()">Aplicar tema personalizado</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h4>Categorias <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openAddCategory()">+ Nova</button></h4>
+        <div class="cat-list" id="cat-list-settings"></div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSettings()">Fechar</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Salvar configurações</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const BACKEND_URL = ""; // ← Cole aqui a URL do seu Apps Script
+
+const DAYS = {
+  "pt-BR": ["(Sem dia)", "Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"],
+  "en":    ["(No day)", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+  "es":    ["(Sin día)", "Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"],
+  "fr":    ["(Sans jour)", "Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"],
+  "de":    ["(Kein Tag)", "Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"],
+};
+const DAY_KEYS = ["", "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  token: localStorage.getItem("agenda_token"),
+  username: localStorage.getItem("agenda_username"),
+  userId: localStorage.getItem("agenda_userId"),
+  tasks: [],
+  categories: [],
+  config: {lang:"pt-BR", theme:"cotton_candy"},
+  weeks: [],
+  currentWeek: null,
+  currentWeekIndex: 0,
+  view: "week",
+  editingTaskId: null,
+};
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  if (!state.token) { window.location.href = "index.html"; return; }
+  document.getElementById("user-display").textContent = "👤 " + (state.username || "");
+  await Promise.all([loadConfig(), loadCategories()]);
+  await loadWeeks();
+  render();
+}
+
+// ============================================================
+// API
+// ============================================================
+async function api(payload) {
+  const r = await fetch(BACKEND_URL, {
+    method: "POST",
+    body: JSON.stringify({...payload, token: state.token})
+  });
+  const data = await r.json();
+  if (data.error === "unauthorized") { logout(); return; }
+  return data;
+}
+
+// ============================================================
+// DATA LOADERS
+// ============================================================
+async function loadConfig() {
+  const r = await api({action:"getConfig"});
+  if (r && r.ok) {
+    state.config = r.config;
+    applyThemeFromConfig();
+  }
+}
+
+async function loadCategories() {
+  const r = await api({action:"getCategories"});
+  if (r && r.ok) state.categories = r.categories;
+}
+
+async function loadWeeks() {
+  const r = await api({action:"getWeeks"});
+  if (r && r.ok) {
+    state.weeks = r.weeks;
+    if (!state.currentWeek) {
+      state.currentWeek = getCurrentWeekKey();
+      state.currentWeekIndex = state.weeks.indexOf(state.currentWeek);
+      if (state.currentWeekIndex === -1) { state.weeks.unshift(state.currentWeek); state.currentWeekIndex = 0; }
+    }
+  }
+  await loadTasks();
+}
+
+async function loadTasks() {
+  const r = await api({action:"getTasks", semana: state.currentWeek});
+  if (r && r.ok) { state.tasks = r.tasks; state.currentWeek = r.semana; }
+  updateWeekBar();
+  render();
+}
+
+// ============================================================
+// WEEK UTILS
+// ============================================================
+function getCurrentWeekKey() {
+  const now = new Date();
+  const mon = getMonday(now);
+  const sat = new Date(mon); sat.setDate(mon.getDate()+5);
+  return fmtKey(mon)+"_"+fmtKey(sat);
+}
+function getMonday(d) {
+  const date = new Date(d), day = date.getDay();
+  date.setDate(date.getDate() + (day===0 ? -6 : 1-day));
+  date.setHours(0,0,0,0); return date;
+}
+function fmtKey(d) { return `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${d.getFullYear()}`; }
+function weekKeyToDisplay(key) {
+  if (!key) return "";
+  const [a,b] = key.split("_");
+  return `${a.slice(0,2)}/${a.slice(2,4)} – ${b.slice(0,2)}/${b.slice(2,4)}/${b.slice(4)}`;
+}
+
+function updateWeekBar() {
+  const currentKey = getCurrentWeekKey();
+  const isCurrentWeek = state.currentWeek === currentKey;
+  document.getElementById("week-label").textContent = weekKeyToDisplay(state.currentWeek);
+  document.getElementById("week-tag").textContent = isCurrentWeek ? "semana atual" : state.currentWeek > currentKey ? "semana futura" : "semana passada";
+  document.getElementById("today-btn").style.display = isCurrentWeek ? "none" : "";
+}
+
+function navWeek(dir) {
+  const idx = state.weeks.indexOf(state.currentWeek) + dir;
+  if (idx >= 0 && idx < state.weeks.length) {
+    state.currentWeek = state.weeks[idx];
+  } else if (dir > 0) {
+    // Cria próxima semana
+    const parts = state.currentWeek.split("_");
+    const mon = new Date(parts[0].slice(4), parts[0].slice(2,4)-1, parts[0].slice(0,2));
+    mon.setDate(mon.getDate()+7);
+    const sat = new Date(mon); sat.setDate(mon.getDate()+5);
+    state.currentWeek = fmtKey(mon)+"_"+fmtKey(sat);
+    state.weeks.unshift(state.currentWeek);
+  }
+  loadTasks();
+}
+
+function goToCurrentWeek() {
+  state.currentWeek = getCurrentWeekKey();
+  if (!state.weeks.includes(state.currentWeek)) state.weeks.unshift(state.currentWeek);
+  loadTasks();
+}
+
+// ============================================================
+// VIEW TOGGLE
+// ============================================================
+function setView(v) {
+  state.view = v;
+  document.getElementById("btn-view-week").classList.toggle("active", v==="week");
+  document.getElementById("btn-view-list").classList.toggle("active", v==="list");
+  render();
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  const main = document.getElementById("main-content");
+  if (state.view === "week") main.innerHTML = renderWeekView();
+  else main.innerHTML = renderListView();
+}
+
+function getCatById(id) { return state.categories.find(c=>c.id===id) || {nome:"—", cor_escura:"#64748b", cor_clara:"#f1f5f9"}; }
+function getLang() { return state.config.lang || "pt-BR"; }
+function getDays() { return DAYS[getLang()] || DAYS["pt-BR"]; }
+
+function renderWeekView() {
+  const days = getDays();
+  const now = new Date(); now.setHours(0,0,0,0);
+  const todayDay = DAY_KEYS[now.getDay() === 0 ? 8 : now.getDay()]; // simplificado
+
+  let html = '<div class="week-grid">';
+  // Header
+  html += `<div class="week-grid-header cat-col">${days[0]||"Categoria"}</div>`;
+  for (let i=1;i<=7;i++) html += `<div class="week-grid-header">${days[i]}</div>`;
+
+  // Unscheduled tasks (sem dia)
+  const unscheduled = state.tasks.filter(t=>!t.dia);
+
+  // Por categoria
+  for (const cat of state.categories) {
+    const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id && t.dia);
+    if (catTasks.length === 0 && unscheduled.filter(t=>t.categoria_id===cat.id).length === 0) continue;
+    const total = catTasks.length + unscheduled.filter(t=>t.categoria_id===cat.id).length;
+    const done  = catTasks.filter(t=>t.concluida).length;
+
+    // Linha de cabeçalho da categoria
+    html += `<div class="cat-header-row" style="background:${cat.cor_escura};color:#fff;grid-column:1/-1;">`;
+    html += `▸ ${cat.nome} <span class="cat-count">${done}/${total}</span></div>`;
+
+    // Linha de células por dia
+    html += `<div class="week-cell cat-label" style="background:${cat.cor_escura}22;color:${cat.cor_escura}">${cat.nome}</div>`;
+    for (let d=1; d<=7; d++) {
+      const dayKey = DAY_KEYS[d];
+      const dayTasks = catTasks.filter(t=>t.dia===dayKey);
+      html += `<div class="week-cell" style="background:${cat.cor_clara}55" ondragover="event.preventDefault()" ondrop="dropTask(event,'${cat.id}','${dayKey}')">`;
+      for (const t of dayTasks) {
+        html += renderTaskChip(t, cat);
+      }
+      html += `<div class="add-task-inline"><button onclick="openAddTask('${cat.id}','${dayKey}')" title="Adicionar tarefa">＋</button></div>`;
+      html += `</div>`;
+    }
+  }
+
+  html += '</div>';
+
+  // Tarefas sem dia agendado
+  if (unscheduled.length > 0) {
+    html += `<div class="unscheduled-col">`;
+    html += `<div class="unscheduled-col-header">📌 ${getLang()==="pt-BR"?"Sem dia definido — clique para agendar":"Unscheduled — click to assign a day"} <span class="badge" style="background:var(--surface2);color:var(--text-muted)">${unscheduled.length}</span></div>`;
+    html += `<div class="unscheduled-list">`;
+    for (const t of unscheduled) {
+      const cat = getCatById(t.categoria_id);
+      html += renderTaskChip(t, cat, true);
+    }
+    html += `</div></div>`;
+  }
+
+  return html;
+}
+
+function renderTaskChip(t, cat, unscheduled=false) {
+  const doneClass = t.concluida ? "done" : "";
+  const unsClass  = unscheduled ? "unscheduled" : "";
+  return `<div class="task-chip ${doneClass} ${unsClass}" draggable="true"
+    style="border-left-color:${cat.cor_escura}"
+    ondragstart="dragTask(event,'${t.id}')"
+    onclick="openEditTask('${t.id}')">
+    <div class="task-check" onclick="event.stopPropagation();toggleTask('${t.id}')">
+      <label class="check-wrap">
+        <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
+        <div class="check-box"></div>
+      </label>
+    </div>
+    <span class="task-title">${escHtml(t.titulo)}</span>
+  </div>`;
+}
+
+function renderListView() {
+  let html = '<div class="list-view">';
+  const days = getDays();
+  if (state.categories.length === 0 || state.tasks.length === 0) {
+    html += `<div class="empty-state"><div class="empty-icon">📭</div><p>Nenhuma tarefa esta semana. Clique em <strong>+ Tarefa</strong> para começar.</p></div>`;
+    return html + '</div>';
+  }
+
+  for (const cat of state.categories) {
+    const catTasks = state.tasks.filter(t=>t.categoria_id===cat.id);
+    if (catTasks.length === 0) continue;
+    const done = catTasks.filter(t=>t.concluida).length;
+    html += `<div class="list-cat-block">`;
+    html += `<div class="list-cat-header" style="background:${cat.cor_escura};color:#fff">`;
+    html += `<div><div class="list-cat-name">${cat.nome}</div><div class="list-cat-sub">${done}/${catTasks.length} concluídas</div></div>`;
+    html += `</div>`;
+    html += `<div class="list-tasks">`;
+    for (const t of catTasks) {
+      const dayLabel = t.dia ? days[DAY_KEYS.indexOf(t.dia)] : days[0];
+      const dayClass = t.dia ? "" : "no-day";
+      html += `<div class="list-task-row ${t.concluida?"done":""}" onclick="openEditTask('${t.id}')">`;
+      html += `<label class="check-wrap" onclick="event.stopPropagation()">
+        <input type="checkbox" ${t.concluida?"checked":""} onchange="toggleTask('${t.id}')"/>
+        <div class="check-box" style="border-color:${cat.cor_escura}"></div>
+      </label>`;
+      html += `<span class="list-task-title">${escHtml(t.titulo)}</span>`;
+      html += `<span class="list-task-day ${dayClass}">${dayLabel}</span>`;
+      html += `<div class="list-task-actions">
+        <button onclick="event.stopPropagation();openEditTask('${t.id}')" title="Editar">✏️</button>
+        <button onclick="event.stopPropagation();deleteTask('${t.id}')" title="Excluir">🗑</button>
+      </div>`;
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  }
+  return html + '</div>';
+}
+
+// ============================================================
+// TASK ACTIONS
+// ============================================================
+function openAddTask(catId="", dayKey="") {
+  state.editingTaskId = null;
+  document.getElementById("modal-task-title").textContent = "Nova Tarefa";
+  document.getElementById("btn-save-task").textContent = "Salvar tarefa";
+  document.getElementById("task-title").value = "";
+  document.getElementById("task-detail").value = "";
+  populateCatSelect(catId);
+  populateDaySelect(dayKey);
+  document.getElementById("task-week").value = "current";
+  document.getElementById("field-week-choice").style.display = "";
+  document.getElementById("modal-task").style.display = "flex";
+  setTimeout(()=>document.getElementById("task-title").focus(), 100);
+}
+
+function openEditTask(id) {
+  const t = state.tasks.find(t=>t.id===id);
+  if (!t) return;
+  state.editingTaskId = id;
+  document.getElementById("modal-task-title").textContent = "Editar Tarefa";
+  document.getElementById("btn-save-task").textContent = "Salvar alterações";
+  document.getElementById("task-title").value = t.titulo;
+  document.getElementById("task-detail").value = t.detalhe || "";
+  populateCatSelect(t.categoria_id);
+  populateDaySelect(t.dia || "");
+  document.getElementById("field-week-choice").style.display = "none";
+  document.getElementById("modal-task").style.display = "flex";
+  setTimeout(()=>document.getElementById("task-title").focus(), 100);
+}
+
+function populateCatSelect(selectedId="") {
+  const sel = document.getElementById("task-cat");
+  sel.innerHTML = state.categories.map(c=>
+    `<option value="${c.id}" ${c.id===selectedId?"selected":""}>${c.nome}</option>`
+  ).join("");
+}
+
+function populateDaySelect(selectedKey="") {
+  const days = getDays();
+  const sel = document.getElementById("task-day");
+  sel.innerHTML = days.map((d,i)=>
+    `<option value="${DAY_KEYS[i]}" ${DAY_KEYS[i]===selectedKey?"selected":""}>${d}</option>`
+  ).join("");
+}
+
+function closeTaskModal(e) {
+  if (!e || e.target === document.getElementById("modal-task"))
+    document.getElementById("modal-task").style.display = "none";
+}
+
+async function saveTask() {
+  const title = document.getElementById("task-title").value.trim();
+  if (!title) { toast("⚠️ Informe o título da tarefa."); return; }
+
+  const btn = document.getElementById("btn-save-task");
+  btn.disabled = true; btn.textContent = "Salvando…";
+
+  const catId   = document.getElementById("task-cat").value;
+  const dayKey  = document.getElementById("task-day").value;
+  const detail  = document.getElementById("task-detail").value.trim();
+  const weekPref = document.getElementById("task-week").value;
+
+  let semana = state.currentWeek;
+  if (!state.editingTaskId && weekPref === "next") {
+    const parts = state.currentWeek.split("_");
+    const mon = new Date(parts[0].slice(4), parts[0].slice(2,4)-1, parts[0].slice(0,2));
+    mon.setDate(mon.getDate()+7);
+    const sat = new Date(mon); sat.setDate(mon.getDate()+5);
+    semana = fmtKey(mon)+"_"+fmtKey(sat);
+  }
+
+  if (state.editingTaskId) {
+    await api({action:"updateTask", id:state.editingTaskId, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+    toast("✅ Tarefa atualizada!");
+  } else {
+    await api({action:"addTask", semana, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+    toast("✅ Tarefa adicionada!");
+  }
+
+  closeTaskModal();
+  await loadWeeks();
+  btn.disabled = false;
+}
+
+async function toggleTask(id) {
+  const t = state.tasks.find(t=>t.id===id);
+  if (!t) return;
+  t.concluida = !t.concluida;
+  render();
+  await api({action:"updateTask", id, concluida:t.concluida});
+}
+
+async function deleteTask(id) {
+  if (!confirm("Excluir esta tarefa?")) return;
+  await api({action:"deleteTask", id});
+  await loadTasks();
+  toast("🗑 Tarefa excluída.");
+}
+
+// Drag & drop
+let draggedId = null;
+function dragTask(e, id) { draggedId = id; e.dataTransfer.effectAllowed="move"; }
+async function dropTask(e, catId, dayKey) {
+  if (!draggedId) return;
+  await api({action:"updateTask", id:draggedId, categoria_id:catId, dia:dayKey});
+  draggedId = null;
+  await loadTasks();
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+async function openSettings() {
+  await loadCategories();
+  const c = state.config;
+  document.getElementById("cfg-lang").value      = c.lang || "pt-BR";
+  document.getElementById("cfg-email").value     = c.email || "";
+  document.getElementById("cfg-send-day").value  = c.send_day || "Monday";
+  document.getElementById("cfg-send-hour").value = c.send_hour ?? 8;
+
+  // Tema
+  document.querySelectorAll(".theme-swatch").forEach(s=>{
+    s.classList.toggle("active", s.dataset.theme === (c.theme||"cotton_candy"));
+  });
+  document.getElementById("custom-theme-builder").style.display = c.theme==="custom" ? "" : "none";
+
+  renderCatSettings();
+  document.getElementById("modal-settings").style.display = "flex";
+}
+
+function closeSettings(e) {
+  if (!e || e.target === document.getElementById("modal-settings"))
+    document.getElementById("modal-settings").style.display = "none";
+}
+
+function renderCatSettings() {
+  const list = document.getElementById("cat-list-settings");
+  list.innerHTML = state.categories.map(c=>`
+    <div class="cat-item" id="ci-${c.id}">
+      <div class="cat-dot" style="background:${c.cor_escura}"></div>
+      <span class="cat-item-name">${escHtml(c.nome)}</span>
+      <div class="cat-item-actions">
+        <button onclick="editCategoryInline('${c.id}')" title="Editar">✏️</button>
+        <button onclick="deleteCategoryItem('${c.id}')" title="Excluir">🗑</button>
+      </div>
+    </div>`).join("");
+}
+
+function editCategoryInline(id) {
+  const cat = state.categories.find(c=>c.id===id);
+  if (!cat) return;
+  const el = document.getElementById("ci-"+id);
+  el.innerHTML = `
+    <input value="${escHtml(cat.nome)}" id="ei-name-${id}" style="flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:14px;"/>
+    <div class="color-grid">
+      <input type="color" value="${cat.cor_escura}" id="ei-dark-${id}"/>
+      <input type="color" value="${cat.cor_clara}" id="ei-light-${id}"/>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveCategoryInline('${id}')">OK</button>
+    <button class="btn btn-ghost btn-sm" onclick="renderCatSettings()">✕</button>`;
+}
+
+function saveCategoryInline(id) {
+  const cat = state.categories.find(c=>c.id===id);
+  if (!cat) return;
+  cat.nome       = document.getElementById("ei-name-"+id).value.trim();
+  cat.cor_escura = document.getElementById("ei-dark-"+id).value;
+  cat.cor_clara  = document.getElementById("ei-light-"+id).value;
+  renderCatSettings();
+}
+
+function openAddCategory() {
+  const nome = prompt("Nome da nova categoria:");
+  if (!nome) return;
+  state.categories.push({
+    id: "cat_new_"+Date.now(), nome: nome.trim(),
+    cor_escura:"#64748b", cor_clara:"#f1f5f9", ordem: state.categories.length
+  });
+  renderCatSettings();
+}
+
+function deleteCategoryItem(id) {
+  if (!confirm("Excluir esta categoria? As tarefas associadas não serão apagadas.")) return;
+  state.categories = state.categories.filter(c=>c.id!==id);
+  renderCatSettings();
+}
+
+function pickTheme(el) {
+  document.querySelectorAll(".theme-swatch").forEach(s=>s.classList.remove("active"));
+  el.classList.add("active");
+  state.config.theme = el.dataset.theme;
+  document.getElementById("custom-theme-builder").style.display = el.dataset.theme==="custom" ? "" : "none";
+  if (el.dataset.theme !== "custom") applyThemeFromConfig();
+}
+
+function applyThemeFromConfig() {
+  const map = {cotton_candy:"cotton-candy", sobrio:"sobrio", cinza:"cinza", vibrante:"vibrante", dark:"dark", minimal:"minimal"};
+  const cls = "theme-" + (map[state.config.theme] || "cotton-candy");
+  document.body.className = document.body.className.replace(/theme-\S+/g,"").trim() + " " + cls;
+  if (state.config.theme === "custom" && state.config.custom_theme) applyCustomThemeDirect(state.config.custom_theme);
+}
+
+function applyCustomTheme() {
+  const ct = {
+    primary:       document.getElementById("ct-primary").value,
+    primaryLight:  document.getElementById("ct-primary-light").value,
+    accent:        document.getElementById("ct-accent").value,
+    bg:            document.getElementById("ct-bg").value,
+    surface:       document.getElementById("ct-surface").value,
+    text:          document.getElementById("ct-text").value,
+  };
+  state.config.custom_theme = ct;
+  applyCustomThemeDirect(ct);
+  toast("🎨 Tema personalizado aplicado!");
+}
+
+function applyCustomThemeDirect(ct) {
+  const r = document.documentElement;
+  r.style.setProperty("--primary",       ct.primary);
+  r.style.setProperty("--primary-light", ct.primaryLight);
+  r.style.setProperty("--accent",        ct.accent);
+  r.style.setProperty("--bg",            ct.bg);
+  r.style.setProperty("--surface",       ct.surface);
+  r.style.setProperty("--text",          ct.text);
+}
+
+async function saveSettings() {
+  const btn = document.querySelector("#modal-settings .btn-primary");
+  btn.disabled = true; btn.textContent = "Salvando…";
+  state.config.lang       = document.getElementById("cfg-lang").value;
+  state.config.email      = document.getElementById("cfg-email").value;
+  state.config.send_day   = document.getElementById("cfg-send-day").value;
+  state.config.send_hour  = parseInt(document.getElementById("cfg-send-hour").value);
+  await Promise.all([
+    api({action:"saveConfig", config: state.config}),
+    api({action:"saveCategories", categories: state.categories})
+  ]);
+  applyThemeFromConfig();
+  closeSettings();
+  await loadCategories();
+  render();
+  toast("✅ Configurações salvas!");
+  btn.disabled = false; btn.textContent = "Salvar configurações";
+}
+
+// ============================================================
+// EMAIL
+// ============================================================
+async function sendEmail() {
+  const btn = document.querySelector("[onclick=\"sendEmail()\"]");
+  btn.disabled = true;
+  const r = await api({action:"sendEmail"});
+  btn.disabled = false;
+  if (r && r.ok) toast("📧 E-mail enviado com sucesso!");
+  else toast("⚠️ " + (r?.error || "Erro ao enviar e-mail. Verifique o e-mail nas configurações."));
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+function logout() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+let toastTimer;
+function toast(msg) {
+  clearTimeout(toastTimer);
+  let el = document.getElementById("toast-el");
+  if (!el) { el = document.createElement("div"); el.id="toast-el"; el.className="toast"; document.body.appendChild(el); }
+  el.textContent = msg; el.style.display = "block";
+  toastTimer = setTimeout(()=>{ el.style.display="none"; }, 3000);
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+init();
+</script>
+</body>
+</html>
