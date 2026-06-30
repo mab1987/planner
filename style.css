@@ -8,10 +8,24 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-family, 'Inter'), -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: var(--font-size, 16px);
   transition: background .3s, color .3s;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ── Famílias de fonte disponíveis ───────────────────────────
+   Aplicadas via variável --font-family setada em JS.
+   Carregadas via <link> no <head> de app.html. ───────────── */
+.font-inter   { --font-family: 'Inter', sans-serif; }
+.font-georgia { --font-family: 'Georgia', 'Merriweather', serif; }
+.font-roboto  { --font-family: 'Roboto', sans-serif; }
+.font-mono    { --font-family: 'JetBrains Mono', 'Roboto Mono', monospace; }
+
+/* ── Tamanhos de fonte disponíveis ───────────────────────── */
+.fontsize-small  { --font-size: 14px; }
+.fontsize-medium { --font-size: 16px; }
+.fontsize-large  { --font-size: 18px; }
 
 /* ── Temas ────────────────────────────────────────────────── */
 
@@ -288,6 +302,106 @@ body {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* ── Indicador de "hoje" ──────────────────────────────────── */
+.week-grid-header.is-today {
+  background: var(--accent);
+  position: relative;
+}
+.week-grid-header.is-today::after {
+  content: "•";
+  display: block;
+  font-size: 18px;
+  line-height: 0;
+  margin-top: 4px;
+}
+.week-cell.is-today-col {
+  background: var(--primary-light) !important;
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+}
+
+/* ── Prioridade ───────────────────────────────────────────── */
+.priority-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.priority-baixa  { background: #94a3b8; }
+.priority-media  { background: #f59e0b; }
+.priority-alta   { background: #ef4444; }
+
+.star-icon { font-size: 13px; cursor: pointer; flex-shrink: 0; user-select: none; }
+.star-icon.active { filter: drop-shadow(0 0 2px rgba(250,204,21,.6)); }
+
+/* ── Tarefa bloqueada por dependência ────────────────────── */
+.task-chip.blocked, .list-task-row.blocked {
+  opacity: .65;
+  cursor: not-allowed;
+  position: relative;
+}
+.dep-lock-icon { font-size: 11px; opacity: .7; flex-shrink: 0; }
+
+/* ── Subtarefas ───────────────────────────────────────────── */
+.subtask-list {
+  margin-top: 4px;
+  padding-left: 4px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.subtask-row {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--text-muted);
+}
+.subtask-row.done { text-decoration: line-through; opacity: .55; }
+.subtask-row input[type=checkbox] {
+  width: 11px; height: 11px; accent-color: var(--success); cursor: pointer; flex-shrink: 0;
+}
+
+/* ── Edição inline ────────────────────────────────────────── */
+.task-title[contenteditable="true"] {
+  outline: none;
+  border-bottom: 1px dashed var(--primary);
+  cursor: text;
+}
+.list-task-title[contenteditable="true"] {
+  outline: none;
+  border-bottom: 1px dashed var(--primary);
+  cursor: text;
+}
+
+/* ── Busca rápida ─────────────────────────────────────────── */
+.search-box {
+  position: relative;
+  display: flex; align-items: center;
+}
+.search-box input {
+  padding: 7px 12px 7px 30px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px; font-family: inherit;
+  background: var(--bg); color: var(--text);
+  width: 180px; outline: none; transition: border-color .18s, width .18s;
+}
+.search-box input:focus { border-color: var(--primary); width: 220px; }
+.search-box .search-icon {
+  position: absolute; left: 9px; font-size: 13px; opacity: .5; pointer-events: none;
+}
+.search-box .search-clear {
+  position: absolute; right: 6px; background: none; border: none; cursor: pointer;
+  font-size: 13px; opacity: .5; padding: 2px;
+}
+.search-box .search-clear:hover { opacity: 1; }
+
+/* ── Progresso da semana ──────────────────────────────────── */
+.week-progress {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-muted);
+}
+.week-progress-bar {
+  width: 80px; height: 6px; border-radius: 99px;
+  background: var(--surface2); overflow: hidden;
+}
+.week-progress-fill {
+  height: 100%; background: var(--success); transition: width .3s;
+}
 
 /* ── Responsividade básica ───────────────────────────────── */
 @media (max-width: 640px) {
