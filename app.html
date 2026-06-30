@@ -456,6 +456,29 @@ async function api(payload) {
   return data;
 }
 
+// ── Trava genérica contra duplo clique / múltiplos envios ──
+// Desabilita o botão, mostra um spinner + texto de carregamento,
+// executa a ação assíncrona, e só então reabilita o botão.
+// Se o botão já estiver em execução, um segundo clique é ignorado.
+const _busyButtons = new WeakSet();
+async function withLoading(btn, loadingText, action) {
+  if (!btn || _busyButtons.has(btn)) return; // ignora cliques repetidos
+  _busyButtons.add(btn);
+  const originalHTML = btn.innerHTML;
+  const originalWidth = btn.offsetWidth;
+  btn.style.minWidth = originalWidth + "px"; // evita o botão "pular" de tamanho
+  btn.disabled = true;
+  btn.innerHTML = `<span class="btn-spinner"></span> ${loadingText}`;
+  try {
+    await action();
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+    btn.style.minWidth = "";
+    _busyButtons.delete(btn);
+  }
+}
+
 // ============================================================
 // DATA LOADERS
 // ============================================================
@@ -733,33 +756,34 @@ async function saveTask() {
   if (!title) { toast("⚠️ Informe o título da tarefa."); return; }
 
   const btn = document.getElementById("btn-save-task");
-  btn.disabled = true; btn.textContent = "Salvando…";
+  const isEditing = !!state.editingTaskId;
 
-  const catId   = document.getElementById("task-cat").value;
-  const dayKey  = document.getElementById("task-day").value;
-  const detail  = document.getElementById("task-detail").value.trim();
-  const weekPref = document.getElementById("task-week").value;
+  await withLoading(btn, isEditing ? "Salvando…" : "Adicionando…", async () => {
+    const catId   = document.getElementById("task-cat").value;
+    const dayKey  = document.getElementById("task-day").value;
+    const detail  = document.getElementById("task-detail").value.trim();
+    const weekPref = document.getElementById("task-week").value;
 
-  let semana = state.currentWeek;
-  if (!state.editingTaskId && weekPref === "next") {
-    const parts = state.currentWeek.split("_");
-    const mon = new Date(parts[0].slice(4), parts[0].slice(2,4)-1, parts[0].slice(0,2));
-    mon.setDate(mon.getDate()+7);
-    const sat = new Date(mon); sat.setDate(mon.getDate()+5);
-    semana = fmtKey(mon)+"_"+fmtKey(sat);
-  }
+    let semana = state.currentWeek;
+    if (!isEditing && weekPref === "next") {
+      const parts = state.currentWeek.split("_");
+      const mon = new Date(parts[0].slice(4), parts[0].slice(2,4)-1, parts[0].slice(0,2));
+      mon.setDate(mon.getDate()+7);
+      const sat = new Date(mon); sat.setDate(mon.getDate()+5);
+      semana = fmtKey(mon)+"_"+fmtKey(sat);
+    }
 
-  if (state.editingTaskId) {
-    await api({action:"updateTask", id:state.editingTaskId, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
-    toast("✅ Tarefa atualizada!");
-  } else {
-    await api({action:"addTask", semana, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
-    toast("✅ Tarefa adicionada!");
-  }
+    if (isEditing) {
+      await api({action:"updateTask", id:state.editingTaskId, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+      toast("✅ Tarefa atualizada!");
+    } else {
+      await api({action:"addTask", semana, titulo:title, categoria_id:catId, dia:dayKey, detalhe:detail});
+      toast("✅ Tarefa adicionada!");
+    }
 
-  closeTaskModal();
-  await loadWeeks();
-  btn.disabled = false;
+    closeTaskModal();
+    await loadWeeks();
+  });
 }
 
 async function toggleTask(id) {
@@ -906,21 +930,21 @@ function applyCustomThemeDirect(ct) {
 
 async function saveSettings() {
   const btn = document.querySelector("#modal-settings .btn-primary");
-  btn.disabled = true; btn.textContent = "Salvando…";
-  state.config.lang       = document.getElementById("cfg-lang").value;
-  state.config.email      = document.getElementById("cfg-email").value;
-  state.config.send_day   = document.getElementById("cfg-send-day").value;
-  state.config.send_hour  = parseInt(document.getElementById("cfg-send-hour").value);
-  await Promise.all([
-    api({action:"saveConfig", config: state.config}),
-    api({action:"saveCategories", categories: state.categories})
-  ]);
-  applyThemeFromConfig();
-  closeSettings();
-  await loadCategories();
-  render();
-  toast("✅ Configurações salvas!");
-  btn.disabled = false; btn.textContent = "Salvar configurações";
+  await withLoading(btn, "Salvando…", async () => {
+    state.config.lang       = document.getElementById("cfg-lang").value;
+    state.config.email      = document.getElementById("cfg-email").value;
+    state.config.send_day   = document.getElementById("cfg-send-day").value;
+    state.config.send_hour  = parseInt(document.getElementById("cfg-send-hour").value);
+    await Promise.all([
+      api({action:"saveConfig", config: state.config}),
+      api({action:"saveCategories", categories: state.categories})
+    ]);
+    applyThemeFromConfig();
+    closeSettings();
+    await loadCategories();
+    render();
+    toast("✅ Configurações salvas!");
+  });
 }
 
 // ============================================================
@@ -928,11 +952,11 @@ async function saveSettings() {
 // ============================================================
 async function sendEmail() {
   const btn = document.querySelector("[onclick=\"sendEmail()\"]");
-  btn.disabled = true;
-  const r = await api({action:"sendEmail"});
-  btn.disabled = false;
-  if (r && r.ok) toast("📧 E-mail enviado com sucesso!");
-  else toast("⚠️ " + (r?.error || "Erro ao enviar e-mail. Verifique o e-mail nas configurações."));
+  await withLoading(btn, "Enviando…", async () => {
+    const r = await api({action:"sendEmail"});
+    if (r && r.ok) toast("📧 E-mail enviado com sucesso!");
+    else toast("⚠️ " + (r?.error || "Erro ao enviar e-mail. Verifique o e-mail nas configurações."));
+  });
 }
 
 // ============================================================
